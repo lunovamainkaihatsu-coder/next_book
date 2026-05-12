@@ -497,11 +497,16 @@ with col2:
 
 
 if clear_clicked:
-    st.session_state.books = []
-    st.session_state.last_query = ""
-    st.session_state.last_message = ""
-    st.session_state.main_input = ""
-    st.session_state.extra_input = ""
+    for key in [
+        "books",
+        "last_query",
+        "last_message",
+        "main_input",
+        "extra_input"
+    ]:
+        if key in st.session_state:
+            del st.session_state[key]
+
     st.rerun()
 
 
