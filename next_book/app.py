@@ -1,11 +1,53 @@
 import os
 import json
+import time
+from datetime import datetime
+
+def load_reading_log():
+
+    if os.path.exists(READING_LOG_PATH):
+
+        try:
+
+            with open(
+                READING_LOG_PATH,
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+                return json.load(f)
+
+        except:
+            return []
+
+    return []
+
+
+def save_reading_log(data):
+
+    with open(
+        READING_LOG_PATH,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            data,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+
 import random
 import time
 import urllib.parse
+import requests
 from typing import List, Dict
 
 import streamlit as st
+
+READING_LOG_PATH = "reading_log.json"
 
 try:
     from openai import OpenAI
@@ -303,12 +345,25 @@ defaults = {
     "last_message": "",
     "main_input": "",
     "extra_input": "",
+    "reading_log": load_reading_log(),
 }
 
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
+# =========================
+# ページ切り替え
+# =========================
+page = st.sidebar.radio(
+    "メニュー",
+    [
+        "ホーム",
+        "本を探す",
+        "読書記録",
+        "このアプリについて"
+    ]
+)
 
 # =========================
 # 補助関数
@@ -371,7 +426,33 @@ def make_search_links(title: str, author: str):
     amazon_url = f"https://www.amazon.co.jp/s?k={query}&i=stripbooks"
     rakuten_url = f"https://books.rakuten.co.jp/search?sitem={query}"
     return amazon_url, rakuten_url
+def get_cover_url(title, author):
+    try:
+        query = urllib.parse.quote(f"{title} {author}")
 
+        url = f"https://www.googleapis.com/books/v1/volumes?q={query}&maxResults=1"
+
+        r = requests.get(url, timeout=5)
+        data = r.json()
+
+        items = data.get("items", [])
+
+        if items:
+            info = items[0].get("volumeInfo", {})
+            images = info.get("imageLinks", {})
+
+            cover_url = (
+                images.get("thumbnail")
+                or images.get("smallThumbnail")
+            )
+
+            if cover_url:
+                return cover_url.replace("http://", "https://")
+
+    except Exception:
+        pass
+
+    return None
 
 def build_prompt(user_input: str, extra_condition: str = "") -> str:
     condition_text = f"\n追加条件: {extra_condition}" if extra_condition else ""
@@ -481,7 +562,7 @@ def search_books(query: str, extra: str = "", message: str = "今のあなたに
 # =========================
 # 安定版カード表示
 # =========================
-def render_book_card(book):
+def render_book_card(book, card_index):
     title = book.get("title", "タイトル不明")
     author = book.get("author", "著者不明")
     genre = book.get("genre", "不明")
@@ -501,6 +582,32 @@ def render_book_card(book):
     match_icon = get_match_icon(match_level)
 
     amazon_url, rakuten_url = make_search_links(title, author)
+    safe_key = f"{card_index}_{title}_{author}".replace(" ", "_").replace("　", "_")
+
+    def add_to_log(status_name):
+        exists = any(
+            x.get("title") == title and x.get("author") == author
+            for x in st.session_state.reading_log
+        )
+
+        if exists:
+            st.warning("📚 すでに登録済みです")
+            return
+
+        st.session_state.reading_log.append(
+            {
+                "title": title,
+                "author": author,
+                "status": status_name,
+                "rating": 3,
+                "memo": "AI検索から追加",
+                "date": datetime.now().strftime("%Y/%m/%d"),
+                "favorite": False,
+            }
+        )
+
+        save_reading_log(st.session_state.reading_log)
+        st.success(f"{status_name}に追加しました📚")
 
     with st.container():
         st.markdown("---")
@@ -508,15 +615,28 @@ def render_book_card(book):
         col1, col2 = st.columns([1, 5])
 
         with col1:
-            st.markdown(
-                f"""
-                <div class="book-cover">
-                    {cover_icon}
-                </div>
-                """,
-                unsafe_allow_html=True,
+
+            cover_url = get_cover_url(
+                title,
+                author
             )
 
+            if cover_url:
+
+                st.image(
+                    cover_url,
+                    use_container_width=True
+                )
+            else:
+
+                st.markdown(
+                    f"""
+                    <div class="book-cover">
+                        {cover_icon}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         with col2:
             st.markdown(f"### 📗 {title}")
             st.caption(f"著者：{author} ／ 発行年：{published_year}")
@@ -544,6 +664,7 @@ def render_book_card(book):
             st.write(comment)
 
             st.markdown("#### 🔎 販売サイトで探す")
+
             link_col1, link_col2 = st.columns(2)
 
             with link_col1:
@@ -556,204 +677,942 @@ def render_book_card(book):
                 "※ AIによる提案です。リンク先の内容・価格・在庫・版などは必ず販売サイトや公式情報でご確認ください。"
             )
 
+            st.markdown("#### 📚 読書記録に追加")
 
+            add_col1, add_col2, add_col3 = st.columns(3)
+
+            with add_col1:
+                if st.button("🌱 気になる", key=f"add_want_{safe_key}", use_container_width=True):
+                    add_to_log("気になる")
+
+            with add_col2:
+                if st.button("📖 読書中", key=f"add_reading_{safe_key}", use_container_width=True):
+                    add_to_log("読書中")
+
+            with add_col3:
+                if st.button("🏆 読了", key=f"add_done_{safe_key}", use_container_width=True):
+                    add_to_log("読了")
+                    
 # =========================
 # UI
 # =========================
-st.markdown(
-    f"""
-    <div class="hero">
-        <div class="beta-badge">β版開発中 ✨</div>
-        <div class="main-title">📚 {APP_TITLE}</div>
-        <div class="sub-text">
-            いま読みたい気分をそのまま書くだけ。<br>
-            静かな本屋さんのように、AIがあなたに合いそうな本を探します。
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
 
-if not st.session_state.books:
+# =========================================
+# ホーム
+# =========================================
+if page == "ホーム":
+
     st.markdown(
         """
-        <div class="scene-card">
-            <div class="scene-title">今日はどんな本を探してみる？📚</div>
-            ふわっとした気分でも大丈夫。<br>
-            「元気が出る本」「夜に読みたい小説」「未来にワクワクする本」みたいに、
-            今の気持ちをそのまま書いてください。
-        </div>
-        """,
-        unsafe_allow_html=True,
+        # 📚 次の一冊
+
+        あなた専用の読書ダッシュボード
+        """
     )
 
-st.markdown(
-    """
-    <div class="mood-card">
-        <div class="scene-title">気分から選ぶ</div>
-        ボタンを押すと、入力欄におすすめの言葉が入ります。
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-m1, m2 = st.columns(2)
-m3, m4 = st.columns(2)
-
-with m1:
-    st.button(
-        "🌱 癒されたい",
-        use_container_width=True,
-        on_click=set_mood_text,
-        args=("最近少し疲れているので、心が軽くなる本が読みたい",),
-    )
-with m2:
-    st.button(
-        "🔥 やる気がほしい",
-        use_container_width=True,
-        on_click=set_mood_text,
-        args=("前向きになれて、行動したくなる本が読みたい",),
-    )
-with m3:
-    st.button(
-        "🌙 物語に浸りたい",
-        use_container_width=True,
-        on_click=set_mood_text,
-        args=("静かに物語の世界に浸れる小説が読みたい",),
-    )
-with m4:
-    st.button(
-        "🧠 学びたい",
-        use_container_width=True,
-        on_click=set_mood_text,
-        args=("新しい知識や考え方を、難しすぎず学べる本が読みたい",),
+    total_books = len(
+        st.session_state.reading_log
     )
 
-st.markdown(
-    """
-    <div class="hint-box">
-    <b>入力例</b><br>
-    ・前向きになれる本が読みたい<br>
-    ・最近ちょっと疲れているから、心が軽くなる小説がいい<br>
-    ・AIや未来について、難しすぎず学べる本を知りたい
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+    finished_books = len(
+        [
+            x
+            for x in st.session_state.reading_log
+            if x.get("status") == "読了"
+        ]
+    )
 
-user_input = st.text_area(
-    "読みたい本のイメージ",
-    placeholder="今の気分や、読みたいテーマを自由に書いてください。",
-    height=145,
-    key="main_input",
-    label_visibility="collapsed",
-)
+    favorite_books = len(
+        [
+            x
+            for x in st.session_state.reading_log
+            if x.get("favorite", False)
+        ]
+    )
 
-col1, col2 = st.columns([2, 1])
+    c1, c2, c3 = st.columns(3)
 
-with col1:
-    search_clicked = st.button("本を探す 📖", use_container_width=True)
+    with c1:
+        st.metric(
+            "📚 登録",
+            total_books
+        )
 
-with col2:
-    clear_clicked = st.button("クリア", use_container_width=True)
+    with c2:
+        st.metric(
+            "🏆 読了",
+            finished_books
+        )
 
+    with c3:
+        st.metric(
+            "❤️ お気に入り",
+            favorite_books
+        )
+    st.markdown("---")
 
-if clear_clicked:
-    for key in ["books", "last_query", "last_message", "main_input", "extra_input"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
+    st.subheader("📚 読書レベル")
 
+    total = len(
+        st.session_state.reading_log
+    )
 
-if search_clicked:
-    if not user_input.strip():
-        st.warning("読みたい本のイメージを入力してください。")
+    if total >= 100:
+        level = "👑 本の賢者"
+
+    elif total >= 50:
+        level = "🏰 図書館マスター"
+
+    elif total >= 30:
+        level = "📖 読書家"
+
+    elif total >= 10:
+        level = "🌱 見習い読書家"
+
     else:
-        search_books(user_input.strip())
+        level = "🐣 読書ビギナー"
 
+    st.success(
+        f"{level}"
+    )
 
-if st.session_state.books:
+    st.caption(
+        f"現在 {total}冊登録"
+    )
+
+    st.markdown("---")
+
+    st.subheader("🏆 最近読了した本")
+
+    finished_books_list = [
+
+        x
+
+        for x
+
+        in reversed(
+            st.session_state.reading_log
+        )
+
+        if x.get("status")
+        == "読了"
+
+    ]
+
+    if finished_books_list:
+
+        for book in finished_books_list[:5]:
+
+            st.markdown(
+                f"""
+    📗 {book.get('title', 'タイトル不明')}
+
+    👤 {book.get('author', '著者不明')}
+    """
+            )
+
+    else:
+
+        st.info(
+            "まだ読了した本はありません📚"
+        )
+    st.markdown("---")
+
+    st.subheader("🔥 読書継続記録")
+
+    read_days = len(
+        set(
+            book.get("date", "")
+            for book in st.session_state.reading_log
+            if book.get("date", "")
+        )
+    )
+
+    if read_days > 0:
+
+        st.success(
+            f"📚 記録した読書日：{read_days}日"
+        )
+
+        st.caption(
+            "まずは読書を記録する習慣を育てていきましょう。"
+        )
+
+    else:
+
+        st.info(
+            "読書記録をつけると、ここに継続記録が表示されます🔥"
+        )
+    st.markdown("---")
+
+    if total_books > 0:
+
+        finish_rate = int(
+            finished_books / total_books * 100
+        )
+
+    else:
+
+        finish_rate = 0
+
+    st.subheader("🎯 読了率")
+
+    st.progress(
+        finish_rate / 100
+    )
+
+    st.write(
+        f"現在の読了率：**{finish_rate}%**"
+    )
+    st.markdown("---")
+
+    st.subheader("📖 今読んでいる本")
+
+    reading_books = [
+        x
+        for x in st.session_state.reading_log
+        if x.get("status") == "読書中"
+    ]
+
+    if reading_books:
+
+        for book in reading_books[:3]:
+
+            st.markdown(
+                f"""
+📗 {book.get("title")}
+
+👤 {book.get("author")}
+"""
+            )
+
+    else:
+
+        st.info(
+            "読書中の本はありません"
+        )
+
+    st.markdown("---")
+
+    st.subheader("🌱 次に読みたい本")
+
+    want_books = [
+        x
+        for x in st.session_state.reading_log
+        if x.get("status") == "気になる"
+    ]
+
+    if want_books:
+
+        for book in want_books[:5]:
+
+            st.markdown(
+                f"📘 {book.get('title')}"
+            )
+
+    else:
+
+        st.info(
+            "気になる本はありません"
+        )
+    st.markdown("---")
+
+    st.subheader("🆕 最近追加した本")
+
+    recent_books = list(
+        reversed(
+            st.session_state.reading_log
+        )
+    )
+
+    if recent_books:
+
+        for book in recent_books[:5]:
+
+            st.markdown(
+            f"""
+    📗 {book.get("title", "タイトル不明")}
+
+    👤 {book.get("author", "著者不明")}
+    """
+            )
+
+    else:
+
+        st.info(
+            "まだ本が登録されていません"
+        )
+    st.markdown("---")
+
+    st.subheader("📊 月別読書数")
+
+    monthly_stats = {}
+
+    for book in st.session_state.reading_log:
+
+        date_str = book.get(
+            "date",
+            ""
+        )
+
+        if not date_str:
+            continue
+
+        try:
+
+            month = date_str[:7]
+
+            monthly_stats[month] = (
+                monthly_stats.get(
+                    month,
+                    0
+                )
+                + 1
+            )
+
+        except:
+            pass
+
+    if monthly_stats:
+
+        for month, count in sorted(
+            monthly_stats.items(),
+            reverse=True
+        ):
+
+            st.write(
+                f"📚 {month} ： {count}冊"
+            )
+
+    else:
+
+        st.info(
+            "まだ読書データがありません"
+        )
+    st.markdown("---")
+
+    st.subheader("❤️ お気に入り分析")
+
+    favorite_books = [
+        book
+        for book in st.session_state.reading_log
+        if book.get("favorite", False)
+    ]
+
+    if favorite_books:
+
+        st.write(
+            f"お気に入り登録：**{len(favorite_books)}冊**"
+        )
+
+        status_count = {}
+
+        for book in favorite_books:
+
+            status = book.get("status", "不明")
+
+            status_count[status] = (
+                status_count.get(status, 0) + 1
+            )
+
+        for status, count in status_count.items():
+
+            st.write(
+                f"{status}：{count}冊"
+            )
+
+        st.caption(
+            "お気に入りが増えるほど、あなたの読書傾向が見えてきます。"
+        )
+
+    else:
+
+        st.info(
+            "お気に入りの本はまだありません❤️"
+        )
+    st.markdown("---")
+
+    st.subheader("🥇 今日のおすすめ本")
+
+    candidate_books = [
+        book
+        for book in st.session_state.reading_log
+        if book.get("status") in ["気になる", "読書中"]
+    ]
+
+    if not candidate_books:
+
+        candidate_books = st.session_state.reading_log
+
+    if candidate_books:
+
+        today_book = random.choice(candidate_books)
+
+        st.markdown(
+            f"""
+    ### 📗 {today_book.get("title", "タイトル不明")}
+
+    👤 著者：{today_book.get("author", "著者不明")}
+
+    🌱 状態：{today_book.get("status", "不明")}
+
+    ⭐ 評価：{"⭐" * int(today_book.get("rating", 0))}
+    """
+        )
+
+        st.caption(
+            "今日はこの一冊に少し触れてみるのもいいかもしれません📚"
+        )
+
+    else:
+
+        st.info(
+            "本を登録すると、今日のおすすめが表示されます📚"
+        )
+
+    st.markdown("---")
+
+    st.subheader("🎯 今月の読書目標")
+
+    monthly_goal = 5
+    finished_count = finished_books
+
+    progress = min(
+        finished_count / monthly_goal,
+        1.0
+    )
+
+    st.write(
+        f"今月の目標：**{monthly_goal}冊**"
+    )
+
+    st.progress(progress)
+
+    st.write(
+        f"読了：**{finished_count}冊 / {monthly_goal}冊**"
+    )
+
+    if finished_count >= monthly_goal:
+        st.success("🎉 今月の読書目標を達成しました！")
+    else:
+        st.info("少しずつ読んでいこう📚")
+
+# =========================================
+# 本を探すページ
+# =========================================
+if page == "本を探す":
+
     st.markdown(
-        f"""
-        <div class="mini-message">
-        {st.session_state.last_message or "今のあなたに合いそうな本を見つけました📚"}
+f"""
+<div class="hero">
+<div class="beta-badge">β版開発中 ✨</div>
+<div class="main-title">📚 {APP_TITLE}</div>
+<div class="sub-text">
+いま読みたい気分をそのまま書くだけ。<br>
+静かな本屋さんのように、AIがあなたに合いそうな本を探します。
+</div>
+</div>
+""",
+unsafe_allow_html=True,
+)
+
+    # 初回説明
+    if not st.session_state.books:
+
+        st.markdown(
+"""
+<div class="scene-card">
+<div class="scene-title">今日はどんな本を探してみる？📚</div>
+ふわっとした気分でも大丈夫。<br>
+「元気が出る本」「夜に読みたい小説」「未来にワクワクする本」みたいに、<br>
+今の気持ちをそのまま書いてください。
+</div>
+""",
+unsafe_allow_html=True,
+)
+
+    # 気分カード
+    st.markdown(
+"""
+<div class="mood-card">
+<div class="scene-title">気分から選ぶ</div>
+ボタンを押すと、入力欄におすすめの言葉が入ります。
+</div>
+""",
+unsafe_allow_html=True,
+)
+
+    # 気分ボタン
+    m1, m2 = st.columns(2)
+    m3, m4 = st.columns(2)
+
+    with m1:
+        st.button(
+            "🌱 癒されたい",
+            use_container_width=True,
+            on_click=set_mood_text,
+            args=("最近少し疲れているので、心が軽くなる本が読みたい",),
+        )
+
+    with m2:
+        st.button(
+            "🔥 やる気がほしい",
+            use_container_width=True,
+            on_click=set_mood_text,
+            args=("前向きになれて、行動したくなる本が読みたい",),
+        )
+
+    with m3:
+        st.button(
+            "🌙 物語に浸りたい",
+            use_container_width=True,
+            on_click=set_mood_text,
+            args=("静かに物語の世界に浸れる小説が読みたい",),
+        )
+
+    with m4:
+        st.button(
+            "🧠 学びたい",
+            use_container_width=True,
+            on_click=set_mood_text,
+            args=("新しい知識や考え方を、難しすぎず学べる本が読みたい",),
+        )
+
+    # 入力例
+    st.markdown(
+        """
+        <div class="hint-box">
+        <b>入力例</b><br>
+
+        ・前向きになれる本が読みたい<br>
+        ・最近ちょっと疲れているから、心が軽くなる小説がいい<br>
+        ・AIや未来について、難しすぎず学べる本を知りたい
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    # 入力欄
+    user_input = st.text_area(
+        "読みたい本のイメージ",
+        placeholder="今の気分や、読みたいテーマを自由に書いてください。",
+        height=145,
+        key="main_input",
+        label_visibility="collapsed",
+    )
+
+    # ボタン
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        search_clicked = st.button(
+            "本を探す 📖",
+            use_container_width=True
+        )
+
+    with col2:
+        clear_clicked = st.button(
+            "クリア",
+            use_container_width=True
+        )
+
+    # クリア
+    if clear_clicked:
+
+        for key in [
+            "books",
+            "last_query",
+            "last_message",
+            "main_input",
+            "extra_input",
+        ]:
+            if key in st.session_state:
+                del st.session_state[key]
+
+        st.rerun()
+
+    # 検索
+    if search_clicked:
+
+        if not user_input.strip():
+            st.warning("読みたい本のイメージを入力してください。")
+
+        else:
+            search_books(user_input.strip())
+
+    # 検索結果
+    if st.session_state.books:
+
+        st.markdown(
+            f"""
+            <div class="mini-message">
+            {st.session_state.last_message or "今のあなたに合いそうな本を見つけました📚"}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            '<div class="result-title">おすすめの本</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.caption(
+            f"入力内容：{st.session_state.last_query}"
+        )
+
+        for i, book in enumerate(st.session_state.books):
+            render_book_card(book, i)
+
+    # 更新履歴
+    st.markdown("---")
+
+    with st.expander("📚 β更新履歴"):
+
+        st.markdown(
+            """
+            **v0.2**
+            - 相性表示を追加
+            - 発行年の表示を追加
+            - Amazon / 楽天ブックスの検索リンクを追加
+            - AIの推薦ルールを少し調整
+
+            **v0.1**
+            - β版として公開
+            - 気分ボタンを追加
+            - 追加条件での再検索を追加
+            - やさしいUIに調整
+            """
+        )
+
+    # フッター
     st.markdown(
-        '<div class="result-title">おすすめの本</div>',
+        """
+        <div class="small-note">
+
+        このアプリは現在β版です📚
+        少しずつ改善・アップデートを行っています。<br>
+
+        ※ 表紙画像・正確な発行日・価格・在庫確認・実在チェックは
+        今後追加予定です。<br>
+
+        ※ AIの提案には誤りが含まれる可能性があります。
+        購入前に販売サイト等で最新情報をご確認ください。
+
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    st.caption(f"入力内容：{st.session_state.last_query}")
 
-    for book in st.session_state.books:
-        render_book_card(book)
+# =========================================
+# 読書記録ページ
+# =========================================
+if page == "読書記録":
 
-    st.markdown("#### 条件を少し変えて探す")
+    st.markdown("## 📖 読書記録")
 
-    extra_input = st.text_input(
-        "追加で希望があれば入力してください",
-        placeholder="例：もっと最近の本 / 暗すぎない小説 / もっと読みやすい本",
-        key="extra_input",
+    all_books = st.session_state.reading_log
+
+    finished = [
+        x for x in all_books
+        if x.get("status") == "読了"
+    ]
+
+    avg = 0
+
+    if all_books:
+        avg = round(
+            sum(x.get("rating", 0) for x in all_books) / len(all_books),
+            1
+        )
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.metric("📚 登録", len(all_books))
+
+    with c2:
+        st.metric("🏆 読了", len(finished))
+
+    with c3:
+        st.metric("⭐ 平均", avg)
+
+    st.markdown("---")
+
+    st.caption("読んだ本・気になる本を記録します")
+
+    title = st.text_input("本のタイトル", key="log_title")
+    author = st.text_input("著者", key="log_author")
+
+    status = st.selectbox(
+        "読書状況",
+        ["気になる", "読書中", "読了"],
+        key="log_status"
     )
 
-    if st.button("追加条件で探し直す ✨", use_container_width=True):
-        if not extra_input.strip():
-            st.warning("追加したい条件を入力してください。")
-        else:
-            search_books(
-                st.session_state.last_query,
-                extra=extra_input.strip(),
-                message=f"「{extra_input.strip()}」の条件で探し直しました✨",
+    rating = st.slider(
+        "評価",
+        1,
+        5,
+        3,
+        key="log_rating"
+    )
+
+    memo = st.text_area(
+        "感想",
+        key="log_memo"
+    )
+
+    if st.button("保存 📚", use_container_width=True):
+
+        if title:
+            st.session_state.reading_log.append(
+                {
+                    "title": title,
+                    "author": author,
+                    "status": status,
+                    "rating": rating,
+                    "memo": memo,
+                }
             )
+
+            save_reading_log(st.session_state.reading_log)
+
+            st.success("保存しました✨")
             st.rerun()
 
-    c1, c2 = st.columns(2)
-    c3, c4 = st.columns(2)
+        else:
+            st.warning("本のタイトルを入力してください。")
 
-    if c1.button("🌱 もっとやさしい本", use_container_width=True):
-        search_books(
-            st.session_state.last_query,
-            extra="もっとやさしい本を優先してください",
-            message="少しやさしめの本を探し直しました🌱",
-        )
-        st.rerun()
+    st.markdown("---")
 
-    if c2.button("🌙 小説寄りにする", use_container_width=True):
-        search_books(
-            st.session_state.last_query,
-            extra="小説を優先してください",
-            message="物語に寄せて探し直しました🌙",
-        )
-        st.rerun()
+    st.markdown(
+        f"### 記録済み：{len(st.session_state.reading_log)}冊"
+    )
 
-    if c3.button("🧠 実用書だけにする", use_container_width=True):
-        search_books(
-            st.session_state.last_query,
-            extra="実用書のみを提案してください",
-            message="実用書を中心に探し直しました🧠",
-        )
-        st.rerun()
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "🌱 気になる",
+            "📖 読書中",
+            "🏆 読了",
+            "❤お気に入り",
+        ]
+    )
 
-    if c4.button("🔥 もう少し深い内容", use_container_width=True):
-        search_books(
-            st.session_state.last_query,
-            extra="より深く考えられる本を優先してください",
-            message="少し深めの本を探し直しました🔥",
-        )
-        st.rerun()
+    def render_book_list(status_name):
 
+        books = [
+            (idx, book)
+            for idx, book in enumerate(st.session_state.reading_log)
+            if book.get("status") == status_name
+        ]
 
-st.markdown(
+        if not books:
+            st.info("まだありません📚")
+            return
+
+        for idx, book in books:
+
+            favorite = book.get(
+                "favorite",
+                False
+            )
+
+            st.markdown(
+                f"""
+### 📗 {book.get("title", "タイトル不明")}
+
+👤 著者：{book.get("author", "著者不明")}
+
+🌱 状態：{book.get("status", "不明")}
+
+⭐ 評価：{"⭐" * int(book.get("rating", 0))}
+
+📝 感想：  
+{book.get("memo", "")}
+
+{"❤️ お気に入り" if favorite else ""}
+
+"""
+            )
+
+            move1, move2, move3, move4, move5 = st.columns(5)
+
+            with move1:
+                if st.button("🌱", key=f"move_want_{status_name}_{idx}"):
+                    st.session_state.reading_log[idx]["status"] = "気になる"
+                    save_reading_log(st.session_state.reading_log)
+                    st.rerun()
+
+            with move2:
+                if st.button("📖", key=f"move_reading_{status_name}_{idx}"):
+                    st.session_state.reading_log[idx]["status"] = "読書中"
+                    save_reading_log(st.session_state.reading_log)
+                    st.rerun()
+
+            with move3:
+                if st.button("🏆", key=f"move_done_{status_name}_{idx}"):
+                    st.session_state.reading_log[idx]["status"] = "読了"
+                    save_reading_log(
+                        st.session_state.reading_log
+                    )
+
+                    st.balloons()
+
+                    st.success("🎉 読了おめでとう！ 次の一冊へ📚")
+
+                    time.sleep(1.5)
+
+                    st.rerun()
+                    
+            with move4:
+                if st.button("🗑", key=f"delete_{status_name}_{idx}"):
+                    st.session_state.reading_log.pop(idx)
+                    save_reading_log(st.session_state.reading_log)
+                    st.rerun()
+            with move5:
+
+                if st.button(
+                   "❤️",
+                    key=f"fav_{status_name}_{idx}"
+                ):
+
+                    current = book.get(
+                        "favorite",
+                        False
+                    )
+
+                    st.session_state.reading_log[idx][
+                       "favorite"
+                    ] = not current
+
+                    save_reading_log(
+                        st.session_state.reading_log
+                    )
+
+                    st.rerun()
+
+            st.markdown("---")
+
+    with tab1:
+        render_book_list("気になる")
+
+    with tab2:
+        render_book_list("読書中")
+
+    with tab3:
+        render_book_list("読了")
+    with tab4:
+
+        favorites = [
+            (idx, book)
+            for idx, book in enumerate(
+                st.session_state.reading_log
+            )
+            if book.get(
+                "favorite",
+                False
+            )
+        ]
+
+        if not favorites:
+
+            st.info(
+                "お気に入りはまだありません❤️"
+            )
+
+        else:
+
+            for idx, book in favorites:
+
+                st.markdown(
+                f"""
+    ### ❤️ {book.get("title", "タイトル不明")}
+
+    👤 著者：
+    {book.get("author", "著者不明")}
+
+    🌱 状態：
+    {book.get("status", "不明")}
+
+    ⭐ 評価：
+    {"⭐" * int(book.get("rating", 0))}
+
+    📅 登録日：
+    {book.get("date", "-")}
     """
-    <div class="small-note">
-    このアプリは現在β版です📚 少しずつ改善・アップデートを行っています。<br>
-    ※ 表紙画像・正確な発行日・価格・在庫確認・実在チェックは今後追加予定です。<br>
-    ※ AIの提案には誤りが含まれる可能性があります。購入前に販売サイト等で最新情報をご確認ください。
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+                )
+
+                st.markdown("---")
+
+# =========================================
+# このアプリについて
+# =========================================
+if page == "このアプリについて":
+
+    st.markdown("## ℹ️ このアプリについて")
+
+    st.markdown(
+        """
+        **次の一冊** は、  
+        「今の気分に合う本を探したい」  
+        「次に読む本を見つけたい」  
+        という時に使える読書サポートアプリです。
+        """
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 🤖 AIについて")
+
+    st.markdown(
+        """
+        このアプリでは、AIを使って本の候補を提案しています。  
+        そのため、提案内容には誤りや古い情報が含まれる場合があります。
+
+        本を購入する前には、Amazon・楽天ブックス・出版社公式サイトなどで  
+        最新情報をご確認ください。
+        """
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 👪 子どもの利用について")
+
+    st.markdown(
+        """
+        子どもでも使いやすい読書アプリを目指しています。  
+        ただし、AIの提案や販売サイトへの移動を含むため、  
+        お子さまが利用する場合は保護者の方と一緒の利用をおすすめします。
+        """
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 💰 広告・有料プランについて")
+
+    st.markdown(
+        """
+        AIを利用する機能には運営側に費用がかかります。  
+        そのため、今後の利用状況によっては、広告表示や有料プランを導入する可能性があります。
+
+        できるだけ使いやすく、安心して楽しめる形を目指して改善していきます。
+        """
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 🚧 今後追加したい機能")
+
+    st.markdown(
+        """
+        - 表紙画像の表示
+        - 読書目標
+        - 月別読書数
+        - お気に入り傾向の分析
+        - スマホアプリ化
+        - 子ども向けモード
+        - もっとかわいいUI
+        """
+    )
