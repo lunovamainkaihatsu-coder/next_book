@@ -387,6 +387,20 @@ st.markdown(
     .caption {
         color: #756b80 !important;
     }
+    /* =========================
+       入力欄文字色対策
+       ========================= */
+
+    .stTextInput input,
+    .stTextArea textarea {
+        color: #2f2a38 !important;
+        background-color: #ffffff !important;
+    }
+
+    .stTextInput input::placeholder,
+    .stTextArea textarea::placeholder {
+        color: #888888 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
