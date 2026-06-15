@@ -354,6 +354,39 @@ st.markdown(
             line-height: 1.7 !important;
         }
      }
+     /* =========================
+       Streamlit Cloud 文字色対策
+       ========================= */
+    .stApp,
+    .stApp p,
+    .stApp div,
+    .stApp span,
+    .stApp label {
+            color: #3f3a4a;
+    }
+
+    .stMarkdown,
+    .stMarkdown p,
+    .stMarkdown div {
+        color: #3f3a4a;
+    }
+
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] * {
+        color: #2f2a38;
+    }
+
+    .stTextInput label,
+    .stTextArea label,
+    .stSelectbox label,
+    .stSlider label {
+        color: #3f3a4a !important;
+    }
+
+    .stCaption,
+    .caption {
+        color: #756b80 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
