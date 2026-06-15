@@ -59,9 +59,10 @@ except ImportError:
 # 基本設定
 # =========================
 st.set_page_config(
-    page_title="次の一冊 β",
+    page_title="次の一冊",
     page_icon="📚",
     layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
 APP_TITLE = "次の一冊"
@@ -215,9 +216,9 @@ st.markdown(
     }
 
     .book-cover {
-        width: 82px;
-        min-width: 82px;
-        height: 122px;
+        width: 72px;
+        min-width: 72px;
+        height: 108px;
         border-radius: 12px;
         background: linear-gradient(160deg, #f6a9c8, #8fb7ff);
         box-shadow: 0 8px 16px rgba(120, 90, 130, 0.14);
@@ -281,6 +282,78 @@ st.markdown(
         margin-top: 28px;
         line-height: 1.8;
     }
+
+    /* =========================
+       スマホ表示調整
+       ========================= */
+    @media screen and (max-width: 640px) {
+
+        .hero {
+            padding: 22px 16px;
+            border-radius: 22px;
+            margin-bottom: 16px;
+        }
+
+        .main-title {
+            font-size: 2rem;
+        }
+
+        .sub-text {
+            font-size: 0.92rem;
+            line-height: 1.7;
+        }
+
+        .scene-card,
+        .mood-card {
+            padding: 14px 14px;
+            border-radius: 18px;
+            margin-bottom: 14px;
+            line-height: 1.7;
+        }
+
+        .scene-title {
+            font-size: 1rem;
+        }
+
+        .stButton > button {
+            width: 100%;
+            min-height: 56px;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .scene-card {
+            font-size: 0.95rem;
+        }
+
+        .scene-card b {
+            font-size: 1.05rem;
+        }
+
+        .stProgress > div > div > div {
+            height: 10px;
+            border-radius: 999px;
+        }
+        div[style*="border-left: 10px solid #c89f68"] {
+            padding: 14px !important;
+            border-radius: 16px !important;
+            margin-bottom: 12px !important;
+        }
+
+        div[style*="font-size: 1.15rem"] {
+            font-size: 1rem !important;
+        }
+
+        div[style*="line-height:1.9"] {
+            font-size: 0.92rem !important;
+            line-height: 1.7 !important;
+        }
+     }
     </style>
     """,
     unsafe_allow_html=True,
@@ -355,13 +428,23 @@ for key, value in defaults.items():
 # =========================
 # ページ切り替え
 # =========================
+st.sidebar.markdown(
+    """
+# 📚 次の一冊
+
+小さな読書アプリ
+🐰 うさぎ司書と本棚づくり
+"""
+)
+
 page = st.sidebar.radio(
-    "メニュー",
+    "",
     [
-        "ホーム",
-        "本を探す",
-        "読書記録",
-        "このアプリについて"
+        "🏠 メイン",
+        "🔍 本を探す",
+        "📚 本棚",
+        "📊 記録",
+        "ℹ️ このアプリについて"
     ]
 )
 
@@ -612,7 +695,7 @@ def render_book_card(book, card_index):
     with st.container():
         st.markdown("---")
 
-        col1, col2 = st.columns([1, 5])
+        col1, col2 = st.columns([1, 4])
 
         with col1:
 
@@ -698,34 +781,439 @@ def render_book_card(book, card_index):
 # =========================
 
 # =========================================
-# ホーム
+# メイン
 # =========================================
-if page == "ホーム":
+if page == "🏠 メイン":
 
     st.markdown(
         """
-        # 📚 次の一冊
-
-        あなた専用の読書ダッシュボード
-        """
+<div class="hero">
+<div class="beta-badge">今日の読書ホーム 🐰</div>
+<div class="main-title">📚 次の一冊</div>
+<div class="sub-text">
+今日はどの本と過ごしますか？<br>
+あなたの本棚から、今の一冊をそっと選びます。
+</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+    "📱 スマホでは左上のメニューからページを切り替えられます"
     )
 
-    total_books = len(
-        st.session_state.reading_log
+    q1, q2 = st.columns(2)
+
+    with q1:
+        if st.button(
+            "🔍 本を探す",
+            use_container_width=True
+        ):
+            st.info("左メニューから本を探せます📚")
+
+    with q2:
+        if st.button(
+            "📚 本棚を見る",
+            use_container_width=True
+        ):
+            st.info("左メニューから本棚へどうぞ📖")
+
+    all_books = st.session_state.reading_log
+
+    reading_books = [
+        x
+        for x in all_books
+        if x.get("status") == "読書中"
+    ]
+
+    want_books = [
+        x
+        for x in all_books
+        if x.get("status") == "気になる"
+    ]
+
+    finished_books = [
+        x
+        for x in all_books
+        if x.get("status") == "読了"
+    ]
+
+    reading_count = len(reading_books)
+    want_count = len(want_books)
+    finished_count = len(finished_books)
+
+    # =========================
+    # メイン用カード
+    # =========================
+    def main_book_card(book, icon="📗"):
+
+        st.markdown(
+            f"""
+<div class="scene-card">
+<div class="scene-title">
+{icon} {book.get("title", "タイトル不明")}
+</div>
+👤 {book.get("author", "著者不明")}<br>
+🌱 状態：{book.get("status", "不明")}<br>
+⭐ 評価：{"⭐" * int(book.get("rating", 0))}
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    # =========================
+    # うさぎ司書メッセージ
+    # =========================
+    if reading_count > 0:
+        rabbit_message = (
+            f"🐰 読書中の本が{reading_count}冊あります。"
+            "今日は少しだけページを開いてみませんか？"
+        )
+
+    elif want_count > 0:
+        rabbit_message = (
+            f"🐰 気になる本が{want_count}冊あります。"
+            "今日はその中から一冊選んでみましょう。"
+        )
+
+    elif finished_count > 0:
+        rabbit_message = (
+            f"🐰 これまでに{finished_count}冊読み終えています。"
+            "すてきな読書の積み重ねですね。"
+        )
+
+    else:
+        rabbit_message = (
+            "🐰 まずは気になる本を一冊登録してみましょう。"
+            "小さな本棚づくりの始まりです。"
+        )
+
+    extra_rabbit_messages = [
+        "📚 1ページだけでも、ちゃんと読書です。",
+        "🌱 本棚は少しずつ育てていけば大丈夫です。",
+        "☕ 無理せず、今の気分に合う本を選びましょう。",
+        "🌙 夜に少し読むだけでも、心が整うことがあります。",
+        "✨ 今日の一冊が、明日のヒントになるかもしれません。",
+    ]
+    # =========================
+    # うさぎ司書レベル
+    # =========================
+    if finished_count >= 100:
+        rabbit_level = "👑 Lv.5 伝説の司書うさぎ"
+
+    elif finished_count >= 50:
+        rabbit_level = "🏰 Lv.4 図書館案内うさぎ"
+
+    elif finished_count >= 30:
+        rabbit_level = "📖 Lv.3 読書応援うさぎ"
+
+    elif finished_count >= 10:
+        rabbit_level = "🌱 Lv.2 本棚見守りうさぎ"
+
+    else:
+        rabbit_level = "🐣 Lv.1 新米司書うさぎ"
+
+    rabbit_message = (
+        rabbit_message
+        + "<br>"
+        + random.choice(extra_rabbit_messages)
     )
+
+    if finished_count < 10:
+        next_rabbit_level = 10
+
+    elif finished_count < 30:
+        next_rabbit_level = 30
+
+    elif finished_count < 50:
+        next_rabbit_level = 50
+
+    elif finished_count < 100:
+        next_rabbit_level = 100
+
+    else:
+        next_rabbit_level = finished_count
+
+    rabbit_remaining = max(
+        next_rabbit_level - finished_count,
+        0
+    )
+
+    # =========================
+    # うさぎ経験値バー
+    # =========================
+    if finished_count < 10:
+        rabbit_progress = finished_count / 10
+
+    elif finished_count < 30:
+        rabbit_progress = finished_count / 30
+
+    elif finished_count < 50:
+        rabbit_progress = finished_count / 50
+
+    elif finished_count < 100:
+        rabbit_progress = finished_count / 100
+
+    else:
+        rabbit_progress = 1.0
+
+    st.markdown(
+        f"""
+<div class="scene-card">
+<div class="scene-title">🐰 うさぎ司書さん</div>
+<b>{rabbit_level}</b><br>
+🌟 次のレベルまであと {rabbit_remaining}冊<br>
+{rabbit_message}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    st.progress(rabbit_progress)
+    
+    with st.expander("🏆 称号・バッジを見る", expanded=False):
+        # =========================
+        # 読了称号
+        # =========================
+        if finished_count >= 100:
+            title_rank = "👑 本の賢者"
+
+        elif finished_count >= 50:
+            title_rank = "🏰 図書館マスター"
+
+        elif finished_count >= 30:
+            title_rank = "📖 読書家"
+
+        elif finished_count >= 10:
+            title_rank = "🌱 見習い読書家"
+
+        elif finished_count >= 1:
+            title_rank = "🐣 読書の一歩"
+
+        else:
+            title_rank = "🥚 これから読書家"
+
+        st.markdown(
+            f"""
+    <div class="scene-card">
+    <div class="scene-title">🏆 あなたの読了称号</div>
+    <div style="font-size:1.25rem; font-weight:900;">
+    {title_rank}
+    </div>
+    読了冊数：{finished_count}冊
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+
+        # =========================
+        # 次の称号まで
+        # =========================
+        if finished_count < 1:
+            next_goal = 1
+            next_title = "🐣 読書の一歩"
+
+        elif finished_count < 10:
+            next_goal = 10
+            next_title = "🌱 見習い読書家"
+
+        elif finished_count < 30:
+            next_goal = 30
+            next_title = "📖 読書家"
+
+        elif finished_count < 50:
+            next_goal = 50
+            next_title = "🏰 図書館マスター"
+
+        elif finished_count < 100:
+            next_goal = 100
+            next_title = "👑 本の賢者"
+
+        else:
+            next_goal = finished_count
+            next_title = "最高称号達成中"
+
+        if finished_count < 100:
+
+            remaining = next_goal - finished_count
+            progress = finished_count / next_goal
+
+            st.markdown(
+                f"""
+    <div class="scene-card">
+    <div class="scene-title">🌟 次の称号まで</div>
+    次の称号：{next_title}<br>
+    あと <b>{remaining}冊</b> で到達します。
+    </div>
+    """,
+                unsafe_allow_html=True,
+            )
+
+            st.progress(progress)
+
+        else:
+
+            st.success(
+                "👑 最高称号に到達しています！すごい読書家です📚"
+            )
+
+    # =========================
+    # 今日の読書ミッション
+    # =========================
+    st.markdown("### 🎯 今日の読書ミッション")
+
+    mission_list = [
+        "5分だけ本を開く",
+        "1ページだけ読む",
+        "気になる本を1冊追加する",
+        "読書中の本を少し進める",
+        "読み終えた本に感想を書く",
+    ]
+
+    today_mission = random.choice(
+        mission_list
+    )
+
+    st.markdown(
+        f"""
+<div class="scene-card">
+<div class="scene-title">今日のミッション</div>
+🎯 {today_mission}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # =========================
+    # 読書バッジ
+    # =========================
+    st.markdown("### 🍎 読書バッジ")
+
+    if finished_count >= 20:
+        badge = "⭐ たくさん読めたねバッジ"
+
+    elif finished_count >= 10:
+        badge = "📖 読書だいすきバッジ"
+
+    elif finished_count >= 5:
+        badge = "🌱 すくすく読書バッジ"
+
+    elif finished_count >= 1:
+        badge = "🍎 はじめて読了バッジ"
+
+    else:
+        badge = "🥚 これから読書バッジ"
+
+    st.markdown(
+        f"""
+<div class="scene-card">
+<div class="scene-title">今のバッジ</div>
+{badge}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # =========================
+    # 今日の一冊
+    # =========================
+    st.markdown("### 🐰 今日の一冊")
+
+    candidate_books = [
+        book
+        for book in all_books
+        if book.get("status") in ["気になる", "読書中"]
+    ]
+
+    if not candidate_books:
+        candidate_books = all_books
+
+    if candidate_books:
+
+        today_book = random.choice(
+            candidate_books
+        )
+
+        main_book_card(
+            today_book,
+            icon="📗"
+        )
+
+        st.caption(
+            "今日はこの本を少しだけ開いてみてもいいかも📖"
+        )
+
+    else:
+
+        st.info(
+            "まずは本を登録してみよう📚"
+        )
+
+    st.markdown("---")
+
+    # =========================
+    # 今読んでいる本
+    # =========================
+    st.markdown("### 📖 今読んでいる本")
+
+    if reading_books:
+
+        for book in reading_books[:3]:
+            main_book_card(
+                book,
+                icon="📖"
+            )
+
+    else:
+
+        st.info(
+            "読書中の本はありません📚"
+        )
+
+    st.markdown("---")
+
+    # =========================
+    # 次に読みたい本
+    # =========================
+    st.markdown("### 🌱 次に読みたい本")
+
+    if want_books:
+
+        for book in want_books[:5]:
+            main_book_card(
+                book,
+                icon="🌱"
+            )
+
+    else:
+
+        st.info(
+            "気になる本はありません🌱"
+        )
+# =========================================
+# ホーム
+# =========================================
+if page == "📊 記録":
+
+    st.markdown("# 📚 次の一冊")
+    st.caption("あなた専用の読書ダッシュボード")
+
+    all_books = st.session_state.reading_log
+
+    total_books = len(all_books)
 
     finished_books = len(
         [
             x
-            for x in st.session_state.reading_log
+            for x in all_books
             if x.get("status") == "読了"
         ]
     )
 
-    favorite_books = len(
+    favorite_books_count = len(
         [
             x
-            for x in st.session_state.reading_log
+            for x in all_books
             if x.get("favorite", False)
         ]
     )
@@ -733,82 +1221,78 @@ if page == "ホーム":
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        st.metric(
-            "📚 登録",
-            total_books
-        )
+        st.metric("📚 登録", total_books)
 
     with c2:
-        st.metric(
-            "🏆 読了",
-            finished_books
-        )
+        st.metric("🏆 読了", finished_books)
 
     with c3:
-        st.metric(
-            "❤️ お気に入り",
-            favorite_books
+        st.metric("❤️ お気に入り", favorite_books_count)
+
+    # =========================
+    # 共通カード
+    # =========================
+    def home_book_card(book, icon="📗"):
+
+        title = book.get("title", "タイトル不明")
+        author = book.get("author", "著者不明")
+        status = book.get("status", "不明")
+        rating = int(book.get("rating", 0))
+
+        st.markdown(
+            f"""
+<div class="scene-card">
+<div class="scene-title">
+{icon} {title}
+</div>
+👤 {author}<br>
+🌱 状態：{status}<br>
+⭐ 評価：{"⭐" * rating}
+</div>
+""",
+            unsafe_allow_html=True,
         )
+        
     st.markdown("---")
 
+    # 読書レベル
     st.subheader("📚 読書レベル")
 
-    total = len(
-        st.session_state.reading_log
-    )
-
-    if total >= 100:
+    if total_books >= 100:
         level = "👑 本の賢者"
 
-    elif total >= 50:
+    elif total_books >= 50:
         level = "🏰 図書館マスター"
 
-    elif total >= 30:
+    elif total_books >= 30:
         level = "📖 読書家"
 
-    elif total >= 10:
+    elif total_books >= 10:
         level = "🌱 見習い読書家"
 
     else:
         level = "🐣 読書ビギナー"
 
-    st.success(
-        f"{level}"
-    )
-
-    st.caption(
-        f"現在 {total}冊登録"
-    )
+    st.success(level)
+    st.caption(f"現在 {total_books}冊登録")
 
     st.markdown("---")
 
+    # 最近読了した本
     st.subheader("🏆 最近読了した本")
 
     finished_books_list = [
-
         x
-
-        for x
-
-        in reversed(
-            st.session_state.reading_log
-        )
-
-        if x.get("status")
-        == "読了"
-
+        for x in reversed(all_books)
+        if x.get("status") == "読了"
     ]
 
     if finished_books_list:
 
         for book in finished_books_list[:5]:
-
-            st.markdown(
-                f"""
-    📗 {book.get('title', 'タイトル不明')}
-
-    👤 {book.get('author', '著者不明')}
-    """
+            home_book_card(
+                book,
+                icon="🏆"
             )
 
     else:
@@ -816,14 +1300,16 @@ if page == "ホーム":
         st.info(
             "まだ読了した本はありません📚"
         )
+
     st.markdown("---")
 
+    # 読書継続記録
     st.subheader("🔥 読書継続記録")
 
     read_days = len(
         set(
             book.get("date", "")
-            for book in st.session_state.reading_log
+            for book in all_books
             if book.get("date", "")
         )
     )
@@ -843,19 +1329,19 @@ if page == "ホーム":
         st.info(
             "読書記録をつけると、ここに継続記録が表示されます🔥"
         )
+
     st.markdown("---")
 
-    if total_books > 0:
+    # 読了率
+    st.subheader("🎯 読了率")
 
+    if total_books > 0:
         finish_rate = int(
             finished_books / total_books * 100
         )
 
     else:
-
         finish_rate = 0
-
-    st.subheader("🎯 読了率")
 
     st.progress(
         finish_rate / 100
@@ -864,91 +1350,88 @@ if page == "ホーム":
     st.write(
         f"現在の読了率：**{finish_rate}%**"
     )
+
     st.markdown("---")
 
+    # 今読んでいる本
     st.subheader("📖 今読んでいる本")
 
     reading_books = [
         x
-        for x in st.session_state.reading_log
+        for x in all_books
         if x.get("status") == "読書中"
     ]
 
     if reading_books:
 
         for book in reading_books[:3]:
-
-            st.markdown(
-                f"""
-📗 {book.get("title")}
-
-👤 {book.get("author")}
-"""
+            home_book_card(
+                book,
+                icon="📖"
             )
 
     else:
 
         st.info(
-            "読書中の本はありません"
+            "読書中の本はありません📚"
         )
 
     st.markdown("---")
 
+    # 次に読みたい本
     st.subheader("🌱 次に読みたい本")
 
     want_books = [
         x
-        for x in st.session_state.reading_log
+        for x in all_books
         if x.get("status") == "気になる"
     ]
 
     if want_books:
 
         for book in want_books[:5]:
-
-            st.markdown(
-                f"📘 {book.get('title')}"
+            home_book_card(
+                book,
+                icon="🌱"
             )
 
     else:
 
         st.info(
-            "気になる本はありません"
+            "気になる本はありません🌱"
         )
+
     st.markdown("---")
 
+    # 最近追加した本
     st.subheader("🆕 最近追加した本")
 
     recent_books = list(
-        reversed(
-            st.session_state.reading_log
-        )
+        reversed(all_books)
     )
 
     if recent_books:
 
         for book in recent_books[:5]:
-
-            st.markdown(
-            f"""
-    📗 {book.get("title", "タイトル不明")}
-
-    👤 {book.get("author", "著者不明")}
-    """
+            home_book_card(
+                book,
+                icon="🆕"
             )
 
     else:
 
         st.info(
-            "まだ本が登録されていません"
+            "まだ本が登録されていません📚"
         )
+
     st.markdown("---")
 
+    # 月別読書数
     st.subheader("📊 月別読書数")
 
     monthly_stats = {}
 
-    for book in st.session_state.reading_log:
+    for book in all_books:
 
         date_str = book.get(
             "date",
@@ -958,20 +1441,11 @@ if page == "ホーム":
         if not date_str:
             continue
 
-        try:
+        month = date_str[:7]
 
-            month = date_str[:7]
-
-            monthly_stats[month] = (
-                monthly_stats.get(
-                    month,
-                    0
-                )
-                + 1
-            )
-
-        except:
-            pass
+        monthly_stats[month] = (
+            monthly_stats.get(month, 0) + 1
+        )
 
     if monthly_stats:
 
@@ -987,15 +1461,17 @@ if page == "ホーム":
     else:
 
         st.info(
-            "まだ読書データがありません"
+            "まだ読書データがありません📊"
         )
+
     st.markdown("---")
 
+    # お気に入り分析
     st.subheader("❤️ お気に入り分析")
 
     favorite_books = [
         book
-        for book in st.session_state.reading_log
+        for book in all_books
         if book.get("favorite", False)
     ]
 
@@ -1009,7 +1485,10 @@ if page == "ホーム":
 
         for book in favorite_books:
 
-            status = book.get("status", "不明")
+            status = book.get(
+                "status",
+                "不明"
+            )
 
             status_count[status] = (
                 status_count.get(status, 0) + 1
@@ -1030,34 +1509,30 @@ if page == "ホーム":
         st.info(
             "お気に入りの本はまだありません❤️"
         )
+
     st.markdown("---")
 
+    # 今日のおすすめ本
     st.subheader("🥇 今日のおすすめ本")
 
     candidate_books = [
         book
-        for book in st.session_state.reading_log
+        for book in all_books
         if book.get("status") in ["気になる", "読書中"]
     ]
 
     if not candidate_books:
-
-        candidate_books = st.session_state.reading_log
+        candidate_books = all_books
 
     if candidate_books:
 
-        today_book = random.choice(candidate_books)
+        today_book = random.choice(
+            candidate_books
+        )
 
-        st.markdown(
-            f"""
-    ### 📗 {today_book.get("title", "タイトル不明")}
-
-    👤 著者：{today_book.get("author", "著者不明")}
-
-    🌱 状態：{today_book.get("status", "不明")}
-
-    ⭐ 評価：{"⭐" * int(today_book.get("rating", 0))}
-    """
+        home_book_card(
+            today_book,
+            icon="🥇"
         )
 
         st.caption(
@@ -1072,6 +1547,7 @@ if page == "ホーム":
 
     st.markdown("---")
 
+    # 今月の読書目標
     st.subheader("🎯 今月の読書目標")
 
     monthly_goal = 5
@@ -1093,34 +1569,47 @@ if page == "ホーム":
     )
 
     if finished_count >= monthly_goal:
-        st.success("🎉 今月の読書目標を達成しました！")
+        st.success(
+            "🎉 今月の読書目標を達成しました！"
+        )
     else:
-        st.info("少しずつ読んでいこう📚")
+        st.info(
+            "少しずつ読んでいこう📚"
+        )
 
 # =========================================
 # 本を探すページ
 # =========================================
-if page == "本を探す":
+if page == "🔍 本を探す":
 
     st.markdown(
-f"""
+        f"""
 <div class="hero">
-<div class="beta-badge">β版開発中 ✨</div>
-<div class="main-title">📚 {APP_TITLE}</div>
+<div class="beta-badge">AI本屋さん β版 ✨</div>
+<div class="main-title">📚 本を探す</div>
 <div class="sub-text">
-いま読みたい気分をそのまま書くだけ。<br>
-静かな本屋さんのように、AIがあなたに合いそうな本を探します。
+いまの気分をそのまま教えてください。<br>
+小さな本屋さんのように、あなたに合いそうな一冊を一緒に探します。
 </div>
 </div>
 """,
-unsafe_allow_html=True,
-)
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+<div class="scene-card">
+<div class="scene-title">🐰 うさぎ司書さん</div>
+こんにちは。今日はどんな本を探しましょう？<br>
+「元気がほしい」「ねる前に読みたい」「親子で読める本」みたいに、気軽に書いてください。
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     # 初回説明
     if not st.session_state.books:
-
         st.markdown(
-"""
+            """
 <div class="scene-card">
 <div class="scene-title">今日はどんな本を探してみる？📚</div>
 ふわっとした気分でも大丈夫。<br>
@@ -1128,19 +1617,20 @@ unsafe_allow_html=True,
 今の気持ちをそのまま書いてください。
 </div>
 """,
-unsafe_allow_html=True,
-)
+            unsafe_allow_html=True,
+        )
 
     # 気分カード
     st.markdown(
-"""
+        """
 <div class="mood-card">
-<div class="scene-title">気分から選ぶ</div>
-ボタンを押すと、入力欄におすすめの言葉が入ります。
+<div class="scene-title">🐰 気分からえらぶ</div>
+今日はどんな本と出会いたい？<br>
+ボタンを押すと、ぴったりの言葉が入力されます。
 </div>
 """,
-unsafe_allow_html=True,
-)
+        unsafe_allow_html=True,
+    )
 
     # 気分ボタン
     m1, m2 = st.columns(2)
@@ -1148,7 +1638,7 @@ unsafe_allow_html=True,
 
     with m1:
         st.button(
-            "🌱 癒されたい",
+            "🌱 ほっとしたい",
             use_container_width=True,
             on_click=set_mood_text,
             args=("最近少し疲れているので、心が軽くなる本が読みたい",),
@@ -1156,7 +1646,7 @@ unsafe_allow_html=True,
 
     with m2:
         st.button(
-            "🔥 やる気がほしい",
+            "🔥 元気がほしい",
             use_container_width=True,
             on_click=set_mood_text,
             args=("前向きになれて、行動したくなる本が読みたい",),
@@ -1164,7 +1654,7 @@ unsafe_allow_html=True,
 
     with m3:
         st.button(
-            "🌙 物語に浸りたい",
+            "🌙 物語の世界へ",
             use_container_width=True,
             on_click=set_mood_text,
             args=("静かに物語の世界に浸れる小説が読みたい",),
@@ -1181,14 +1671,14 @@ unsafe_allow_html=True,
     # 入力例
     st.markdown(
         """
-        <div class="hint-box">
-        <b>入力例</b><br>
+<div class="hint-box">
+<b>入力例</b><br>
 
-        ・前向きになれる本が読みたい<br>
-        ・最近ちょっと疲れているから、心が軽くなる小説がいい<br>
-        ・AIや未来について、難しすぎず学べる本を知りたい
-        </div>
-        """,
+・前向きになれる本が読みたい<br>
+・最近ちょっと疲れているから、心が軽くなる小説がいい<br>
+・AIや未来について、難しすぎず学べる本を知りたい
+</div>
+""",
         unsafe_allow_html=True,
     )
 
@@ -1196,7 +1686,7 @@ unsafe_allow_html=True,
     user_input = st.text_area(
         "読みたい本のイメージ",
         placeholder="今の気分や、読みたいテーマを自由に書いてください。",
-        height=145,
+        height=110,
         key="main_input",
         label_visibility="collapsed",
     )
@@ -1207,18 +1697,17 @@ unsafe_allow_html=True,
     with col1:
         search_clicked = st.button(
             "本を探す 📖",
-            use_container_width=True
+            use_container_width=True,
         )
 
     with col2:
         clear_clicked = st.button(
             "クリア",
-            use_container_width=True
+            use_container_width=True,
         )
 
     # クリア
     if clear_clicked:
-
         for key in [
             "books",
             "last_query",
@@ -1233,22 +1722,19 @@ unsafe_allow_html=True,
 
     # 検索
     if search_clicked:
-
         if not user_input.strip():
             st.warning("読みたい本のイメージを入力してください。")
-
         else:
             search_books(user_input.strip())
 
     # 検索結果
     if st.session_state.books:
-
         st.markdown(
             f"""
-            <div class="mini-message">
-            {st.session_state.last_message or "今のあなたに合いそうな本を見つけました📚"}
-            </div>
-            """,
+<div class="mini-message">
+{st.session_state.last_message or "今のあなたに合いそうな本を見つけました📚"}
+</div>
+""",
             unsafe_allow_html=True,
         )
 
@@ -1268,49 +1754,46 @@ unsafe_allow_html=True,
     st.markdown("---")
 
     with st.expander("📚 β更新履歴"):
-
         st.markdown(
             """
-            **v0.2**
-            - 相性表示を追加
-            - 発行年の表示を追加
-            - Amazon / 楽天ブックスの検索リンクを追加
-            - AIの推薦ルールを少し調整
+**v0.2**
+- 相性表示を追加
+- 発行年の表示を追加
+- Amazon / 楽天ブックスの検索リンクを追加
+- AIの推薦ルールを少し調整
 
-            **v0.1**
-            - β版として公開
-            - 気分ボタンを追加
-            - 追加条件での再検索を追加
-            - やさしいUIに調整
-            """
+**v0.1**
+- β版として公開
+- 気分ボタンを追加
+- 追加条件での再検索を追加
+- やさしいUIに調整
+"""
         )
 
     # フッター
     st.markdown(
         """
-        <div class="small-note">
+<div class="small-note">
 
-        このアプリは現在β版です📚
-        少しずつ改善・アップデートを行っています。<br>
+このアプリは現在β版です📚
+少しずつ改善・アップデートを行っています。<br>
 
-        ※ 表紙画像・正確な発行日・価格・在庫確認・実在チェックは
-        今後追加予定です。<br>
+※ 表紙画像・正確な発行日・価格・在庫確認・実在チェックは
+今後追加予定です。<br>
 
-        ※ AIの提案には誤りが含まれる可能性があります。
-        購入前に販売サイト等で最新情報をご確認ください。
+※ AIの提案には誤りが含まれる可能性があります。
+購入前に販売サイト等で最新情報をご確認ください。
 
-        </div>
-        """,
+</div>
+""",
         unsafe_allow_html=True,
     )
-
-
 # =========================================
-# 読書記録ページ
+# 本棚ページ
 # =========================================
-if page == "読書記録":
+if page == "📚 本棚":
 
-    st.markdown("## 📖 読書記録")
+    st.markdown("## 📚 本棚")
 
     all_books = st.session_state.reading_log
 
@@ -1340,50 +1823,70 @@ if page == "読書記録":
 
     st.markdown("---")
 
-    st.caption("読んだ本・気になる本を記録します")
+    with st.expander("➕ 本を登録", expanded=False):
 
-    title = st.text_input("本のタイトル", key="log_title")
-    author = st.text_input("著者", key="log_author")
+        st.caption("読んだ本・気になる本を記録します")
 
-    status = st.selectbox(
-        "読書状況",
-        ["気になる", "読書中", "読了"],
-        key="log_status"
-    )
+        title = st.text_input(
+            "本のタイトル",
+            key="log_title"
+        )
 
-    rating = st.slider(
-        "評価",
-        1,
-        5,
-        3,
-        key="log_rating"
-    )
+        author = st.text_input(
+            "著者",
+            key="log_author"
+        )
 
-    memo = st.text_area(
-        "感想",
-        key="log_memo"
-    )
+        status = st.selectbox(
+            "読書状況",
+            ["気になる", "読書中", "読了"],
+            key="log_status"
+        )
 
-    if st.button("保存 📚", use_container_width=True):
+        rating = st.slider(
+            "評価",
+            1,
+            5,
+            3,
+            key="log_rating"
+        )
 
-        if title:
-            st.session_state.reading_log.append(
-                {
-                    "title": title,
-                    "author": author,
-                    "status": status,
-                    "rating": rating,
-                    "memo": memo,
-                }
-            )
+        memo = st.text_area(
+            "感想",
+            key="log_memo"
+        )
 
-            save_reading_log(st.session_state.reading_log)
+        if st.button(
+            "保存 📚",
+            use_container_width=True
+        ):
 
-            st.success("保存しました✨")
-            st.rerun()
+            if title:
 
-        else:
-            st.warning("本のタイトルを入力してください。")
+                st.session_state.reading_log.append(
+                    {
+                        "title": title,
+                        "author": author,
+                        "status": status,
+                        "rating": rating,
+                        "memo": memo,
+                        "date": datetime.now().strftime("%Y/%m/%d"),
+                        "favorite": False,
+                    }
+                )
+
+                save_reading_log(
+                    st.session_state.reading_log
+                )
+
+                st.success("保存しました✨")
+                st.rerun()
+
+            else:
+
+                st.warning(
+                    "本のタイトルを入力してください。"
+                )
 
     st.markdown("---")
 
@@ -1391,22 +1894,23 @@ if page == "読書記録":
         f"### 記録済み：{len(st.session_state.reading_log)}冊"
     )
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        [
-            "🌱 気になる",
-            "📖 読書中",
-            "🏆 読了",
-            "❤お気に入り",
-        ]
-    )
+    def render_book_list(status_name=None, favorite_only=False):
 
-    def render_book_list(status_name):
+        if favorite_only:
 
-        books = [
-            (idx, book)
-            for idx, book in enumerate(st.session_state.reading_log)
-            if book.get("status") == status_name
-        ]
+            books = [
+                (idx, book)
+                for idx, book in enumerate(st.session_state.reading_log)
+                if book.get("favorite", False)
+            ]
+
+        else:
+
+            books = [
+                (idx, book)
+                for idx, book in enumerate(st.session_state.reading_log)
+                if book.get("status") == status_name
+            ]
 
         if not books:
             st.info("まだありません📚")
@@ -1414,86 +1918,102 @@ if page == "読書記録":
 
         for idx, book in books:
 
-            favorite = book.get(
-                "favorite",
-                False
-            )
-
             st.markdown(
                 f"""
-### 📗 {book.get("title", "タイトル不明")}
+<div style="
+background: #fffdf8;
+border: 1px solid #eadfcf;
+border-left: 10px solid #c89f68;
+border-radius: 18px;
+padding: 18px;
+margin-bottom: 14px;
+box-shadow: 0 6px 16px rgba(120, 90, 50, 0.08);
+">
 
-👤 著者：{book.get("author", "著者不明")}
+<div style="
+font-size: 1.15rem;
+font-weight: 900;
+color: #4b3b2a;
+margin-bottom: 8px;
+">
+📗 {book.get("title", "タイトル不明")}
+</div>
 
-🌱 状態：{book.get("status", "不明")}
+<div style="color:#6f5c45; line-height:1.9;">
+👤 著者：{book.get("author", "著者不明")}<br>
+🌱 状態：{book.get("status", "不明")}<br>
+⭐ 評価：{"⭐" * int(book.get("rating", 0))}<br>
+📅 登録日：{book.get("date", "-")}<br>
+{"❤️ お気に入り<br>" if book.get("favorite", False) else ""}
+</div>
 
-⭐ 評価：{"⭐" * int(book.get("rating", 0))}
-
-📝 感想：  
+<div style="
+margin-top: 12px;
+padding: 12px;
+background: #fff7ef;
+border-radius: 12px;
+color: #6f5c45;
+line-height:1.8;
+">
+📝 感想：<br>
 {book.get("memo", "")}
+</div>
 
-{"❤️ お気に入り" if favorite else ""}
-
-"""
+</div>
+""",
+                unsafe_allow_html=True,
             )
 
-            move1, move2, move3, move4, move5 = st.columns(5)
+            # =========================
+            # 操作ボタン
+            # =========================
+            move1, move2, move3 = st.columns(3)
 
             with move1:
-                if st.button("🌱", key=f"move_want_{status_name}_{idx}"):
+                if st.button("🌱 気になる", key=f"move_want_{status_name}_{idx}", use_container_width=True):
                     st.session_state.reading_log[idx]["status"] = "気になる"
                     save_reading_log(st.session_state.reading_log)
                     st.rerun()
 
             with move2:
-                if st.button("📖", key=f"move_reading_{status_name}_{idx}"):
+                if st.button("📖 読書中", key=f"move_reading_{status_name}_{idx}", use_container_width=True):
                     st.session_state.reading_log[idx]["status"] = "読書中"
                     save_reading_log(st.session_state.reading_log)
                     st.rerun()
 
             with move3:
-                if st.button("🏆", key=f"move_done_{status_name}_{idx}"):
+                if st.button("🏆 読了", key=f"move_done_{status_name}_{idx}", use_container_width=True):
                     st.session_state.reading_log[idx]["status"] = "読了"
-                    save_reading_log(
-                        st.session_state.reading_log
-                    )
-
+                    save_reading_log(st.session_state.reading_log)
                     st.balloons()
-
-                    st.success("🎉 読了おめでとう！ 次の一冊へ📚")
-
-                    time.sleep(1.5)
-
+                    st.success("🎉 読了おめでとう！")
                     st.rerun()
-                    
+
+            move4, move5 = st.columns(2)
+
             with move4:
-                if st.button("🗑", key=f"delete_{status_name}_{idx}"):
+                if st.button("⭐ 推し本", key=f"fav_{status_name}_{idx}", use_container_width=True):
+                    current = book.get("favorite", False)
+                    st.session_state.reading_log[idx]["favorite"] = not current
+                    save_reading_log(st.session_state.reading_log)
+                    st.rerun()
+
+            with move5:
+                if st.button("🗑 削除", key=f"delete_{status_name}_{idx}", use_container_width=True):
                     st.session_state.reading_log.pop(idx)
                     save_reading_log(st.session_state.reading_log)
                     st.rerun()
-            with move5:
-
-                if st.button(
-                   "❤️",
-                    key=f"fav_{status_name}_{idx}"
-                ):
-
-                    current = book.get(
-                        "favorite",
-                        False
-                    )
-
-                    st.session_state.reading_log[idx][
-                       "favorite"
-                    ] = not current
-
-                    save_reading_log(
-                        st.session_state.reading_log
-                    )
-
-                    st.rerun()
 
             st.markdown("---")
+
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "🌱 気になる",
+            "📖 読書中",
+            "🏆 読了",
+            "❤️ お気に入り",
+        ]
+    )
 
     with tab1:
         render_book_list("気になる")
@@ -1503,53 +2023,13 @@ if page == "読書記録":
 
     with tab3:
         render_book_list("読了")
+
     with tab4:
-
-        favorites = [
-            (idx, book)
-            for idx, book in enumerate(
-                st.session_state.reading_log
-            )
-            if book.get(
-                "favorite",
-                False
-            )
-        ]
-
-        if not favorites:
-
-            st.info(
-                "お気に入りはまだありません❤️"
-            )
-
-        else:
-
-            for idx, book in favorites:
-
-                st.markdown(
-                f"""
-    ### ❤️ {book.get("title", "タイトル不明")}
-
-    👤 著者：
-    {book.get("author", "著者不明")}
-
-    🌱 状態：
-    {book.get("status", "不明")}
-
-    ⭐ 評価：
-    {"⭐" * int(book.get("rating", 0))}
-
-    📅 登録日：
-    {book.get("date", "-")}
-    """
-                )
-
-                st.markdown("---")
-
+        render_book_list(favorite_only=True)
 # =========================================
 # このアプリについて
 # =========================================
-if page == "このアプリについて":
+if page == "ℹ️ このアプリについて":
 
     st.markdown("## ℹ️ このアプリについて")
 
