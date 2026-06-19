@@ -60,7 +60,7 @@ except ImportError:
 # =========================
 st.set_page_config(
     page_title="次の一冊",
-    page_icon="📚",
+    page_icon="icon.png",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
@@ -71,6 +71,16 @@ APP_TITLE = "次の一冊"
 # =========================
 # CSS
 # =========================
+st.markdown(
+    """
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f6a9c8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="次の一冊">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+""",
+    unsafe_allow_html=True,
+)
 st.markdown(
     """
     <style>
@@ -465,6 +475,7 @@ defaults = {
     "last_message": "",
     "main_input": "",
     "extra_input": "",
+    "search_history": [],
     "reading_log": load_reading_log(),
 }
 
@@ -584,6 +595,56 @@ def get_cover_url(title, author):
 
     return None
 
+def get_book_info_from_google(title, author):
+    def search_google_books(query_text):
+        query = urllib.parse.quote(query_text)
+        url = f"https://www.googleapis.com/books/v1/volumes?q={query}&maxResults=1"
+
+        r = requests.get(url, timeout=5)
+        data = r.json()
+
+        return data.get("items", [])
+
+    try:
+        search_patterns = [
+            f'intitle:"{title}" inauthor:"{author}"',
+            f"{title} {author}",
+            f'intitle:"{title}"',
+            title,
+        ]
+
+        for pattern in search_patterns:
+
+            items = search_google_books(pattern)
+
+            if items:
+                info = items[0].get("volumeInfo", {})
+
+                return {
+                    "found": True,
+                    "title": info.get("title", title),
+                    "author": ", ".join(info.get("authors", [author])),
+                    "description": info.get("description", ""),
+                    "published_date": info.get("publishedDate", ""),
+                    "thumbnail": (
+                        info.get("imageLinks", {}).get("thumbnail")
+                        or info.get("imageLinks", {}).get("smallThumbnail")
+                        or ""
+                    ),
+                }
+
+    except Exception:
+        pass
+
+    return {
+        "found": False,
+        "title": title,
+        "author": author,
+        "description": "",
+        "published_date": "",
+        "thumbnail": "",
+    }
+
 def build_prompt(user_input: str, extra_condition: str = "") -> str:
     condition_text = f"\n追加条件: {extra_condition}" if extra_condition else ""
 
@@ -695,6 +756,10 @@ def search_books(query: str, extra: str = "", message: str = "今のあなたに
 def render_book_card(book, card_index):
     title = book.get("title", "タイトル不明")
     author = book.get("author", "著者不明")
+    google_info = get_book_info_from_google(
+        title,
+        author
+    )
     genre = book.get("genre", "不明")
     difficulty = book.get("difficulty", "不明")
     mood = book.get("mood", "今の気分に合いそう")
@@ -706,7 +771,6 @@ def render_book_card(book, card_index):
     reason = book.get("reason", "")
     for_who = book.get("for_who", "")
     comment = book.get("comment", "")
-
     icon = difficulty_icon(difficulty)
     cover_icon = get_cover_icon(genre, difficulty)
     match_icon = get_match_icon(match_level)
@@ -768,7 +832,17 @@ def render_book_card(book, card_index):
                     unsafe_allow_html=True,
                 )
         with col2:
-            st.markdown(f"### 📗 {title}")
+            if google_info["found"]:
+
+                st.markdown(
+                    f"### ✅ {title}"
+                )
+
+            else:
+
+                st.markdown(
+                    f"### ⚠️ {title}"
+                )
             st.caption(f"著者：{author} ／ 発行年：{published_year}")
 
             st.markdown(
@@ -786,6 +860,32 @@ def render_book_card(book, card_index):
 
             st.markdown("#### 📚 今のあなたに合いそうな理由")
             st.write(reason)
+
+            st.markdown("#### 📖 Google Books情報")
+
+            if google_info["found"]:
+
+                if google_info["published_date"]:
+                    st.write(
+                        f"📅 発行日：{google_info['published_date']}"
+                    )
+
+                if google_info["description"]:
+
+                    desc = google_info["description"][:300]
+
+                    st.write(desc + "...")
+
+                else:
+                    st.caption(
+                        "説明文は見つかりませんでした。"
+                    )
+
+            else:
+
+                st.caption(
+                    "Google Booksでは確認できませんでした。販売サイトで確認してください。"
+                )
 
             st.markdown("#### 🌱 向いている人")
             st.write(for_who)
@@ -832,19 +932,24 @@ def render_book_card(book, card_index):
 # =========================================
 if page == "🏠 メイン":
 
+    # =========================
+    # スプラッシュ風カード
+    # =========================
     st.markdown(
         """
 <div class="hero">
-<div class="beta-badge">今日の読書ホーム 🐰</div>
+<div class="beta-badge">🐰 うさぎ司書</div>
 <div class="main-title">📚 次の一冊</div>
 <div class="sub-text">
-今日はどの本と過ごしますか？<br>
-あなたの本棚から、今の一冊をそっと選びます。
+今日のあなたに合う本を、そっと探します。<br>
+本棚と読書記録を、楽しく育てていきましょう。
 </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
+
+
     st.caption(
     "📱 スマホでは左上のメニューからページを切り替えられます"
     )
@@ -1379,6 +1484,40 @@ if page == "📊 記録":
 
     st.markdown("---")
 
+    st.markdown("---")
+
+    # =========================
+    # 読書カレンダー
+    # =========================
+    st.subheader("📅 今月の読書カレンダー")
+
+    today = datetime.now()
+    current_month = today.strftime("%Y/%m")
+
+    read_dates = set(
+        book.get("date", "")
+        for book in all_books
+        if book.get("date", "").startswith(current_month)
+    )
+
+    calendar_days = []
+
+    for day in range(1, 32):
+
+        date_key = f"{current_month}/{day:02d}"
+
+        if date_key in read_dates:
+            calendar_days.append(f"{day}📚")
+        else:
+            calendar_days.append(f"{day}□")
+
+    for i in range(0, 31, 7):
+        st.write(" ".join(calendar_days[i:i + 7]))
+
+    st.caption(
+        "📚 は読書記録をつけた日です。"
+    )
+
     # 読了率
     st.subheader("🎯 読了率")
 
@@ -1594,6 +1733,154 @@ if page == "📊 記録":
 
     st.markdown("---")
 
+    st.markdown("---")
+
+    st.subheader("🏆 実績")
+
+    finished_count = len(
+        [
+            x
+            for x in st.session_state.reading_log
+            if x.get("status") == "読了"
+        ]
+    )
+
+    achievements = []
+
+    if finished_count >= 1:
+        achievements.append("📚 初めての一冊")
+
+    if finished_count >= 5:
+        achievements.append("📖 読書ビギナー")
+
+    if finished_count >= 10:
+        achievements.append("🏆 読書家")
+
+    if finished_count >= 30:
+        achievements.append("👑 本の賢者")
+    if finished_count >= 50:
+        achievements.append("🌟 読書マスター")
+
+    if finished_count >= 100:
+        achievements.append("💎 伝説の読書家")
+
+    favorite_count = len(
+        [
+            x
+            for x in st.session_state.reading_log
+            if x.get("favorite", False)
+        ]
+    )
+
+    if favorite_count >= 5:
+        achievements.append("⭐ 推し本コレクター")
+    if favorite_count >= 10:
+        achievements.append("⭐⭐ 推し本マスター")
+
+    read_days = len(
+        set(
+            book.get("date", "")
+            for book in st.session_state.reading_log
+            if book.get("date", "")
+        )
+    )
+
+    if read_days >= 3:
+        achievements.append("📅 読書習慣スタート")
+
+    if read_days >= 7:
+        achievements.append("🔥 読書継続マスター")
+
+    if achievements:
+
+        for achievement in achievements:
+
+            st.markdown(
+                f"""
+            <div class="scene-card">
+            <div class="scene-title">🏆 実績解除</div>
+            {achievement}
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    else:
+
+        st.info(
+            "まだ実績はありません📚"
+        )
+
+    st.markdown("### 🔒 次の実績")
+
+    locked_achievements = []
+
+    if finished_count < 1:
+        locked_achievements.append(
+            f"📚 初めての一冊：あと {1 - finished_count}冊"
+        )
+
+    if finished_count < 5:
+        locked_achievements.append(
+            f"📖 読書ビギナー：あと {5 - finished_count}冊"
+        )
+
+    if finished_count < 10:
+        locked_achievements.append(
+            f"🏆 読書家：あと {10 - finished_count}冊"
+        )
+
+    if finished_count < 30:
+        locked_achievements.append(
+            f"👑 本の賢者：あと {30 - finished_count}冊"
+        )
+
+    if favorite_count < 5:
+        locked_achievements.append(
+            f"⭐ 推し本コレクター：あと {5 - favorite_count}冊"
+        )
+
+    if finished_count < 50:
+        locked_achievements.append(
+            f"🌟 読書マスター：あと {50 - finished_count}冊"
+        )
+
+    if finished_count < 100:
+        locked_achievements.append(
+            f"💎 伝説の読書家：あと {100 - finished_count}冊"
+        )
+
+    if favorite_count < 10:
+        locked_achievements.append(
+            f"⭐⭐ 推し本マスター：あと {10 - favorite_count}冊"
+        )
+
+    if read_days < 3:
+        locked_achievements.append(
+            f"📅 読書習慣スタート：あと {3 - read_days}日"
+        )
+
+    if read_days < 7:
+        locked_achievements.append(
+            f"🔥 読書継続マスター：あと {7 - read_days}日"
+        )
+
+    if locked_achievements:
+
+        for item in locked_achievements:
+            st.markdown(
+                f"""
+            <div class="scene-card">
+            <div class="scene-title">🔒 次の実績</div>
+            {item}
+            </div>
+            """,
+    unsafe_allow_html=True,
+)
+
+    else:
+        st.success("🎉 すべての実績を達成しています！")
+
     # 今月の読書目標
     st.subheader("🎯 今月の読書目標")
 
@@ -1729,6 +2016,73 @@ if page == "🔍 本を探す":
         unsafe_allow_html=True,
     )
 
+    # =========================
+    # 検索条件
+    # =========================
+    st.markdown(
+        """
+<div class="scene-card">
+<div class="scene-title">🔍 検索条件</div>
+もう少しだけ条件を選ぶと、本を探しやすくなります。
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    filter_col1, filter_col2 = st.columns(2)
+
+    with filter_col1:
+        genre_filter = st.selectbox(
+            "ジャンル",
+            [
+                "おまかせ",
+                "小説",
+                "実用書",
+                "ビジネス",
+                "自己啓発",
+                "児童書",
+                "学び",
+            ],
+            key="genre_filter"
+        )
+
+    with filter_col2:
+        difficulty_filter = st.selectbox(
+            "読みやすさ",
+            [
+                "おまかせ",
+                "やさしい",
+                "ふつう",
+                "しっかり読みたい",
+            ],
+            key="difficulty_filter"
+        )
+
+    purpose_filter = st.selectbox(
+        "読書目的",
+        [
+            "おまかせ",
+            "元気になりたい",
+            "癒されたい",
+            "学びたい",
+            "親子で読みたい",
+            "行動したい",
+            "物語に浸りたい",
+        ],
+        key="purpose_filter"
+    )
+    exclude_text = st.text_input(
+        "除外したい条件（任意）",
+        placeholder="例：難しい本、長編小説、ビジネス書",
+        key="exclude_text"
+    )
+    if st.session_state.search_history:
+
+        with st.expander("📜 最近の検索", expanded=False):
+
+            for item in st.session_state.search_history:
+
+                st.write(f"・{item}")
     # 入力欄
     user_input = st.text_area(
         "読みたい本のイメージ",
@@ -1772,7 +2126,29 @@ if page == "🔍 本を探す":
         if not user_input.strip():
             st.warning("読みたい本のイメージを入力してください。")
         else:
-            search_books(user_input.strip())
+            extra_condition = f"""
+            ジャンル：{genre_filter}
+            読みやすさ：{difficulty_filter}
+            読書目的：{purpose_filter}
+
+            除外条件：
+            {exclude_text}
+            """
+
+            history_item = user_input.strip()
+
+            if history_item not in st.session_state.search_history:
+                st.session_state.search_history.insert(
+                    0,
+                    history_item
+                )
+
+            st.session_state.search_history = st.session_state.search_history[:5]
+
+            search_books(
+                user_input.strip(),
+                extra=extra_condition
+            )
 
     # 検索結果
     if st.session_state.books:
@@ -1835,6 +2211,7 @@ if page == "🔍 本を探す":
 """,
         unsafe_allow_html=True,
     )
+
 # =========================================
 # 本棚ページ
 # =========================================

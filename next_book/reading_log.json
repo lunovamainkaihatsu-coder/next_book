@@ -1,0 +1,41 @@
+[
+  {
+    "title": "嫌われる勇気",
+    "author": "岸見一郎, 古賀史健",
+    "status": "読了",
+    "rating": 3,
+    "memo": "AI検索から追加",
+    "favorite": true
+  },
+  {
+    "title": "夜のピクニック",
+    "author": "恩田陸",
+    "status": "読了",
+    "rating": 3,
+    "memo": "AI検索から追加",
+    "favorite": true
+  },
+  {
+    "title": "コンビニ人間",
+    "author": "村田沙耶香",
+    "status": "読了",
+    "rating": 3,
+    "memo": "AI検索から追加"
+  },
+  {
+    "title": "風が強く吹いている",
+    "author": "三浦しをん",
+    "status": "読書中",
+    "rating": 3,
+    "memo": "AI検索から追加",
+    "date": "2026/06/02",
+    "favorite": false
+  },
+  {
+    "title": "嫌われる勇気",
+    "author": "おれ",
+    "status": "読了",
+    "rating": 3,
+    "memo": ""
+  }
+]
