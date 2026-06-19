@@ -411,6 +411,23 @@ st.markdown(
     .stTextArea textarea::placeholder {
         color: #888888 !important;
     }
+    /* =========================
+       サイドバー文字色改善
+       ========================= */
+
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+
+    [data-testid="stSidebar"] .stRadio label {
+        color: white !important;
+    }
+
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div {
+        color: white !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
