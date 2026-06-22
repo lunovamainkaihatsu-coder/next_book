@@ -428,6 +428,16 @@ st.markdown(
     [data-testid="stSidebar"] div {
         color: white !important;
     }
+    /* =========================
+           サイドバー背景
+       ========================= */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(
+            180deg,
+            #2f2a38 0%,
+            #4d3f63 100%
+        ) !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -1368,6 +1378,47 @@ if page == "📊 記録":
     st.caption("あなた専用の読書ダッシュボード")
 
     all_books = st.session_state.reading_log
+
+    st.subheader("🎯 今月の読書目標")
+
+    monthly_goal = st.number_input(
+        "今月何冊読了したい？",
+        min_value=1,
+        max_value=100,
+        value=5
+    )
+    finished_count = len(
+        [
+            x
+            for x in st.session_state.reading_log
+            if x.get("status") == "読了"
+        ]
+    )
+
+    progress = min(
+        finished_count / monthly_goal,
+        1.0
+    )
+
+    if finished_count >= monthly_goal:
+
+        st.success(
+            "🎉 今月の目標達成です！"
+        )
+
+    else:
+
+        remaining = monthly_goal - finished_count
+
+        st.info(
+            f"あと {remaining}冊で達成です！"
+        )
+
+    st.progress(progress)
+
+    st.write(
+        f"📚 {finished_count} / {monthly_goal}冊"
+    )
 
     total_books = len(all_books)
 
