@@ -442,8 +442,10 @@ st.markdown(
        Android WebView 上部余白対策
        ========================= */
 
-    .block-container {
-        padding-top: 4rem !important;
+    @media screen and (max-width: 640px) {
+        .block-container {
+            padding-top: 4rem !important;
+        }
     }
     </style>
     """,
