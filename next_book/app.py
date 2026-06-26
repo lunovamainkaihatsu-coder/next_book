@@ -438,6 +438,13 @@ st.markdown(
             #4d3f63 100%
         ) !important;
     }
+    /* =========================
+       Android WebView 上部余白対策
+       ========================= */
+
+    .block-container {
+        padding-top: 4rem !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -1043,55 +1050,76 @@ if page == "🏠 メイン":
     # =========================
     # うさぎ司書メッセージ
     # =========================
-    if reading_count > 0:
+
+    if finished_count >= 50:
+
         rabbit_message = (
-            f"🐰 読書中の本が{reading_count}冊あります。"
+            "👑 たくさんの本と出会ってきましたね。"
+            " うさぎ司書も誇らしいです。"
+        )
+
+    elif finished_count >= 30:
+
+        rabbit_message = (
+            "🏆 読書習慣がすっかり身についていますね！"
+        )
+
+    elif finished_count >= 10:
+
+        rabbit_message = (
+            "🌱 本棚が少しずつ育っています。"
+        )
+
+    elif reading_count > 0:
+
+        rabbit_message = (
+            f"📖 読書中の本が{reading_count}冊あります。"
             "今日は少しだけページを開いてみませんか？"
         )
 
     elif want_count > 0:
+
         rabbit_message = (
-            f"🐰 気になる本が{want_count}冊あります。"
+            f"📚 気になる本が{want_count}冊あります。"
             "今日はその中から一冊選んでみましょう。"
         )
 
-    elif finished_count > 0:
-        rabbit_message = (
-            f"🐰 これまでに{finished_count}冊読み終えています。"
-            "すてきな読書の積み重ねですね。"
-        )
-
     else:
+
         rabbit_message = (
             "🐰 まずは気になる本を一冊登録してみましょう。"
             "小さな本棚づくりの始まりです。"
         )
-
     extra_rabbit_messages = [
-        "📚 1ページだけでも、ちゃんと読書です。",
-        "🌱 本棚は少しずつ育てていけば大丈夫です。",
-        "☕ 無理せず、今の気分に合う本を選びましょう。",
-        "🌙 夜に少し読むだけでも、心が整うことがあります。",
-        "✨ 今日の一冊が、明日のヒントになるかもしれません。",
+        "🏡 本棚はあなただけの小さな図書館です。",
+        "🌸 読書はゆっくりでも大丈夫です。",
+        "📖 たった1ページでも前進です。",
+        "🐰 今日はどんな本に出会えるでしょう？",
+        "✨ 読んだ分だけ世界が広がります。",
     ]
     # =========================
     # うさぎ司書レベル
     # =========================
+
     if finished_count >= 100:
         rabbit_level = "👑 Lv.5 伝説の司書うさぎ"
+        level_message = "図書館長も驚く読書量です！"
 
     elif finished_count >= 50:
         rabbit_level = "🏰 Lv.4 図書館案内うさぎ"
+        level_message = "かなりの読書家ですね！"
 
     elif finished_count >= 30:
         rabbit_level = "📖 Lv.3 読書応援うさぎ"
+        level_message = "読書習慣がしっかり根付いています！"
 
     elif finished_count >= 10:
         rabbit_level = "🌱 Lv.2 本棚見守りうさぎ"
+        level_message = "本棚が育ってきましたね！"
 
     else:
         rabbit_level = "🐣 Lv.1 新米司書うさぎ"
-
+        level_message = "まずは最初の一冊を目指しましょう！"
     rabbit_message = (
         rabbit_message
         + "<br>"
@@ -1138,13 +1166,14 @@ if page == "🏠 メイン":
 
     st.markdown(
         f"""
-<div class="scene-card">
-<div class="scene-title">🐰 うさぎ司書さん</div>
-<b>{rabbit_level}</b><br>
-🌟 次のレベルまであと {rabbit_remaining}冊<br>
-{rabbit_message}
-</div>
-""",
+    <div class="scene-card">
+    <div class="scene-title">🐰 うさぎ司書さん</div>
+    <b>{rabbit_level}</b><br>
+    💬 {level_message}<br>
+    🌟 次のレベルまであと {rabbit_remaining}冊<br>
+    {rabbit_message}
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
